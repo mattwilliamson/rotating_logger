@@ -1,0 +1,3 @@
+{application,rotating_logger}.
+{packages,[]}.
+{modules,[rotating_logger]}.

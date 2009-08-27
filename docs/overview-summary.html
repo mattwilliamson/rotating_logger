@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Rotating Logger Application
+</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<h1>Rotating Logger Application
+</h1>
+<p>Copyright © 2008 Matt Williamson</p>
+<p><b>Version:</b> 0.2.1.0</p>
+<p><b>Authors:</b> Matt Williamson (<a href="mailto:mwilliamson@dawsdesign.com"><tt>mwilliamson@dawsdesign.com</tt></a>).</p>
+<p><b>References</b><ul><li><a href="http://dawsdesign.com" target="_top"><tt>http://dawsdesign.com</tt></a>
+</li></ul></p>
+<p>This module allows a developer to include plaintext logging with file rotation in their erlang program. This makes it easier to use third party tools such as splunk or sitescope to parse log files and is good for other such instances where binary log files are not suitable.</p>
+
+<h3><a name="Table_of_Contents">Table of Contents</a></h3>
+<ul>
+<li><a href="#Usage">Usage</a></li>
+<li><a href="#Rotation">Rotation</a></li>
+<li><a href="#Sample">Sample</a></li>
+</ul>
+
+<h3><a name="Usage">Usage</a></h3><p>
+The <a href="rotating_logger.html"><code>rotating_logger</code></a> event handler is added to the error_logger event manager by calling <a href="rotating_logger.html#add_handler-1"><code>rotating_logger:add_handler/1</code></a>. It can also be started with the default arguments with <a href="rotating_logger.html#add_handler-0"><code>rotating_logger:add_handler/0</code></a>. See <a href="rotating_logger.html#init-1"><code>rotating_logger:init/1</code></a> for valid arguments and their defaults. </p>
+
+<p>To log events, use the convenience functions <a href="rotating_logger.html#error-1"><code>rotating_logger:error/1</code></a>, <a href="rotating_logger.html#warn-1"><code>rotating_logger:warn/1</code></a>, <a href="rotating_logger.html#info-1"><code>rotating_logger:info/1</code></a> and <a href="rotating_logger.html#console-1"><code>rotating_logger:console/1</code></a>. These are basically a wrapper on <code>gen_event:notify(error_logger, {Class, Message})</code> so any other event handlers added to error_logger may also receive the event.</p>
+
+<h3><a name="Rotation">Rotation</a></h3><p>
+When an event is going to be logged, and the byte size of the event plus the file size will meet or exceed the <code>max_byte</code> property as set when calling <a href="rotating_logger.html#add_handler-1"><code>rotating_logger:add_handler/1</code></a>, a file is considered full. The logger will close the file and move to the next available one. If the current file number is equal to the <code>max_files</code> property - 1, it will reset the current file to 0 otherwise it will increment it by 1. When the file is rotated, the newly opened file will be truncated. When the event handler performs its first rotation, it creates a file call Name.index where Name is the name property provided when registering the handler and Name.N is the current log file. Name.index is written to every time a file is rotated, to keep track of which file it was on so that it can resume from the previous session after the module has been stopped.</p>
+
+<h3><a name="Sample">Sample</a></h3>
+<pre>root@mwlapvm:~/Projects/rotating_logger# sinan shell
+starting run
+[check_depends] start
+[check_depends] stop
+[build] start
+[build] stop
+starting shell ...
+Erlang (BEAM) emulator version 5.6.3 [source] [async-threads:0] [hipe] [kernel-poll:false]
+
+Eshell V5.6.3  (abort with ^G)
+1&gt; rotating_logger:add_handler([{name, "my_log"}, {dir, "/tmp/my_logger/"}, {max_files, 3}, {max_bytes, 5*1024*1024}]).
+==EVENT LOGGED==
+Starting rotating_logger...
+
+==EVENT LOGGED==
+Reading index file...
+
+==EVENT LOGGED==
+Opening log file...
+
+==EVENT LOGGED==
+Writing to log file... (55+0b/5242880)
+
+ok
+2&gt; rotating_logger:info("Application Started").
+==EVENT LOGGED==
+Writing to log file... (46+55b/5242880)
+
+==EVENT LOGGED==
+Application Started
+ok
+3&gt; rotating_logger:warn("Disk Space Low").
+==EVENT LOGGED==
+Writing to log file... (44+101b/5242880)
+
+==EVENT LOGGED==
+Disk Space Low
+ok
+4&gt; rotating_logger:error("Disk Full!!").  
+==EVENT LOGGED==
+Writing to log file... (39+145b/5242880)
+
+==EVENT LOGGED==
+Disk Full!!
+ok
+5&gt; rotating_logger:console("Client Connected").
+==EVENT LOGGED==
+Client Connected
+ok
+6&gt; 
+User switch command
+ --&gt; q
+root@mwlapvm:~/Projects/rotating_logger# ls /tmp/my_logger/
+my_log.0
+root@mwlapvm:~/Projects/rotating_logger# cat /tmp/my_logger/my_log.0 
+2008-09-05T04:28:04Z	info	Started Logging in GMT time.
+2008-09-05T04:28:31Z	info	Application Started
+2008-09-05T04:28:52Z	warning	Disk Space Low
+2008-09-05T04:29:05Z	error	Disk Full!!
+root@mwlapvm:~/Projects/rotating_logger#</pre>
+
+<hr>
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Sep 14 2008, 05:20:54.</i></p>
+</body>
+</html>
