@@ -12,16 +12,14 @@
 -behaviour(gen_event).
 
 -define(SERVER, ?MODULE).
--define(LINE_FORMAT, 
-	"~4.4.0w-~2.2.0w-~2.2.0wT~2.2.0w:~2.2.0w:~2.2.0wZ\t~s\t~s~n").
+-define(LINE_FORMAT, "~4.4.0w-~2.2.0w-~2.2.0wT~2.2.0w:~2.2.0w:~2.2.0wZ\t~s\t~p~n").
+-define(DATE_FORMAT, "~4.4.0w-~2.2.0w-~2.2.0wT~2.2.0w:~2.2.0w:~2.2.0wZ\t").
 
 %% API
--export([start_link/0, add_handler/0, add_handler/1, log/2, error/1,
-	 warn/1, info/1, console/1]).
+-export([start_link/0, add_handler/0, add_handler/1, log/2, error/2, error/1, warn/2, warn/1, info/2, info/1, console/2, console/1]).
 
 %% gen_event callbacks
--export([init/1, handle_event/2, handle_call/2, 
-	 handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {name, 
 		dir,
@@ -71,6 +69,16 @@ log(Class, Message) ->
     gen_event:notify(error_logger, {Class, Message}).
 
 %%--------------------------------------------------------------------
+%% @spec error(Format, Data) -> ok
+%%     Format = list()
+%%     Data = list()
+%% @doc Logs an informational message disk.
+%% @end
+%%--------------------------------------------------------------------
+error(Format, Data) when is_list(Format) ->
+    log(error, {Format, Data}).
+
+%%--------------------------------------------------------------------
 %% @spec error(Message) -> ok
 %%     Message = string()
 %% @doc Logs an error message to disk.
@@ -78,6 +86,16 @@ log(Class, Message) ->
 %%--------------------------------------------------------------------
 error(Msg) when is_list(Msg) ->
     log(error, Msg).
+
+%%--------------------------------------------------------------------
+%% @spec warn(Format, Data) -> ok
+%%     Format = list()
+%%     Data = list()
+%% @doc Logs an informational message disk.
+%% @end
+%%--------------------------------------------------------------------
+warn(Format, Data) when is_list(Format) ->
+    log(warning, {Format, Data}).
 
 %%--------------------------------------------------------------------
 %% @spec warn(Message) -> ok
@@ -89,6 +107,16 @@ warn(Msg) when is_list(Msg) ->
     log(warning, Msg).
 
 %%--------------------------------------------------------------------
+%% @spec info(Format, Data) -> ok
+%%     Format = list()
+%%     Data = list()
+%% @doc Logs an informational message disk.
+%% @end
+%%--------------------------------------------------------------------
+info(Format, Data) when is_list(Format) ->
+    log(info, {Format, Data}).
+
+%%--------------------------------------------------------------------
 %% @spec info(Message) -> ok
 %%     Message = term()
 %% @doc Logs an informational message disk.
@@ -98,12 +126,22 @@ info(Msg) when is_list(Msg) ->
     log(info, Msg).
 
 %%--------------------------------------------------------------------
+%% @spec console(Format, Data) -> ok
+%%     Format = list()
+%%     Data = list()
+%% @doc Logs an informational message disk.
+%% @end
+%%--------------------------------------------------------------------
+console(Format, Data) when is_list(Format) ->
+    log(console, {Format, Data}).
+
+%%--------------------------------------------------------------------
 %% @spec console(Message) -> ok
 %%     Message = term()
 %% @doc Logs a message to the console.
 %% @end
 %%--------------------------------------------------------------------
-console(Msg) when is_list(Msg) ->
+console(Msg) ->
     log(console, Msg).
 
 %%====================================================================
@@ -153,7 +191,7 @@ console(Msg) when is_list(Msg) ->
 %% @end
 %%--------------------------------------------------------------------
 init(Args) ->
-    console(io_lib:format("Starting ~w...~n", [?MODULE])),
+    console("Starting ~w...~n", [?MODULE]),
     Name = proplists:get_value(name, Args, "log"),
     Dir = proplists:get_value(dir, Args, "."),
     MaxFiles = proplists:get_value(max_files, Args, 5),
@@ -162,8 +200,7 @@ init(Args) ->
     State = open_log_file(#state{name=Name, dir=Dir, max_files=MaxFiles, 
 				 max_bytes=MaxBytes,
 				 current_number=CurrentNumber}),
-    NewState = write_log_file(State, {info, 
-				      "Started Logging in GMT time."}),
+    NewState = write_log_file(State, {info, "Started Logging in GMT time."}),
     {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -183,7 +220,7 @@ init(Args) ->
 %%--------------------------------------------------------------------
 handle_event({Class, Event}, State) ->
     if Class == console ->
-	    io:format("==EVENT LOGGED==~n" ++ Event ++ "~n"),
+        write_console_event(Event),
 	    NewState = State;
        true ->
 	    NewState = write_log_file(State, {Class, Event}),
@@ -248,7 +285,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 read_index_file(Dir, Name) ->
-    console(io_lib:format("Reading index file...~n", [])),
+    console("Reading index file..."),
     IndexFile = filename:join([Dir, Name ++ ".index"]),
     case file:read_file(IndexFile) of 
 	{ok, BinaryIndex} ->
@@ -262,7 +299,7 @@ read_index_file(Dir, Name) ->
 %% The logger uses this when resuming logging from another session.
 %% @end
 write_index_file(Dir, Name, Index) when is_number(Index) ->
-    console(io_lib:format("Writing to index file...~n", [])),
+    console("Writing to index file..."),
     IndexFile = filename:join([Dir, Name ++ ".index"]),
     filelib:ensure_dir(IndexFile),
     file:write_file(IndexFile, term_to_binary(Index)).
@@ -272,11 +309,10 @@ write_index_file(Dir, Name, Index) when is_number(Index) ->
 %% returns a new state with the newly opened file descriptor.
 %% @end
 open_log_file(State) ->
-    console(io_lib:format("Opening log file...~n", [])),
+    console("Opening log file..."),
     Dir = State#state.dir,
     Name = State#state.name,
-    CurrentNumber = State#state.current_number,
-    FileName = io_lib:format("~w.~w", [list_to_atom(Name), CurrentNumber]),
+    FileName = io_lib:format("~w.~s", [list_to_atom(Name), "log"]),
     FilePath = filename:join([Dir, FileName]),
     CurrentBytes = case filelib:is_file(FilePath) of
 		       true ->
@@ -296,31 +332,47 @@ write_log_file(State, {Class, Event}) ->
     CurrentFD = State#state.current_fd,
     CurrentBytes = State#state.current_bytes,
     MaxBytes = State#state.max_bytes,
-    {{Y, M, D}, {H, Mi, S}} = erlang:universaltime(),
-    Line = io_lib:format(?LINE_FORMAT, [Y, M, D, H, Mi, S, Class, Event]),
+    Line = write_event(Class, Event),
     LineBin = list_to_binary(Line),
     LineBytes = byte_size(LineBin),
     NewBytes = LineBytes + CurrentBytes,
-    console(io_lib:format("Writing to log file... (~w+~wb/~w)~n",
-			      [LineBytes, CurrentBytes, MaxBytes])),
+    console("Writing to log file... (~w+~wb/~w)~n", [LineBytes, CurrentBytes, MaxBytes]),
     case NewBytes =< MaxBytes of
 	true ->
 	    file:write(CurrentFD, LineBin),
 	    State#state{current_bytes=NewBytes};
 	false ->
-	    write_log_file(next_log_file(State), {Class, Event})
+	    write_log_file(next_log_file(State#state{current_bytes=LineBytes}), {Class, Event})
     end.
 
+%% @spec write_console_event(Event) -> string()
+%% @doc Generates a console output string for a timestamped event. 
+%% @end
+write_console_event({Format, Data}) ->
+    io:format("==EVENT LOGGED==~n"++Format++"~n", Data);
+write_console_event(Event) ->
+    io:format("==EVENT LOGGED==~n~p~n", [Event]).
+
+%% @spec write_event(Class, Event) -> string()
+%% @doc Generates an output string for a timestamped event. 
+%% @end
+write_event(Class, {Format, Data}) ->
+    {{Y, M, D}, {H, Mi, S}} = erlang:universaltime(),
+    io_lib:format(?DATE_FORMAT++"~s\t"++Format++"~n", lists:append([Y, M, D, H, Mi, S, Class], Data));
+write_event(Class, Event) ->
+    {{Y, M, D}, {H, Mi, S}} = erlang:universaltime(),
+    io_lib:format(?LINE_FORMAT, [Y, M, D, H, Mi, S, Class, Event]).
+
 %% @spec next_log_file(State) -> NewState
-%% @doc Rotates log files, meaning it will move to Name.N + 1 where N is the current 
-%% file number, truncating the next file. If N == the maximum number of file, 
-%% it will change N to 0.
+%% @doc Rotates log files, meaning it will move to Name.log.N-1 to Name.log.N, 
+%% Name.log.N-2 to Name.log.N-1, and so on. Name.log is moved to Name.log.1 and 
+%% logging continues in Name.log. 
 %% @end
 next_log_file(State) ->
     Dir = State#state.dir,
     Name = State#state.name,
     CurrentNumber = State#state.current_number,
-    console(io_lib:format("Opening next log file...(~w)~n", [CurrentNumber])),
+    console("Opening next log file...(~w)~n", [CurrentNumber]),
     MaxNumber = State#state.max_files,
     NextNumber = case CurrentNumber < MaxNumber-1 of
 		     true ->
@@ -328,10 +380,23 @@ next_log_file(State) ->
 		     false ->
 			 0
 		 end,
-    CurrentFD = State#state.current_fd,
-    ok = file:close(CurrentFD),
-    NewState = open_log_file(State#state{current_number=NextNumber}),
-    file:truncate(NewState#state.current_fd),
+    NewState = rotate_log_file({State, MaxNumber-1}),
     write_index_file(Dir, Name, NextNumber),
     NewState.
     
+rotate_log_file({State, 1}) ->
+    Name = State#state.name,
+    Dir = State#state.dir,
+    OldFile = io_lib:format("~w.~s", [list_to_atom(Name), "log"]),
+    NewFile = io_lib:format("~w.~w", [list_to_atom(Name), 1]),
+    file:rename(filename:join([Dir, OldFile]), filename:join([Dir, NewFile])),
+    ok = file:close(State#state.current_fd),
+    open_log_file(State);
+rotate_log_file({State, CurrentNumber}) ->
+    Name = State#state.name,
+    Dir = State#state.dir,
+    OldFile = io_lib:format("~w.~w", [list_to_atom(Name), CurrentNumber-1]),
+    NewFile = io_lib:format("~w.~w", [list_to_atom(Name), CurrentNumber]),
+    Dir = State#state.dir,
+    file:rename(filename:join([Dir, OldFile]), filename:join([Dir, NewFile])),
+    rotate_log_file({State#state{current_number=CurrentNumber-1}, CurrentNumber-1}).
